@@ -1,44 +1,52 @@
-const express = require('express');
-const jwt = require('jsonwebtoken');
-const cookieParser = require('cookie-parser');
-const path = require('path');
-const fs = require('fs');
-
+const express = require("express");
 const app = express();
-app.use(express.json());
-app.use(cookieParser());
+const jwt = require("jsonwebtoken");
+const mysql = require("mysql");
+const bodyParser = require("body-parser");
+
+app.use(bodyParser.json());
+
+// Vulnerable database connection
+const connection = mysql.createConnection({
+  host: "localhost",
+  user: "root",
+  password: "password123",
+  database: "userdb",
+});
 
 // Vulnerable JWT implementation
-const JWT_SECRET = "mysecretkey123"; // Vulnerability: Hardcoded secret
+const createToken = (user) => {
+  return jwt.sign(user, "hardcoded-secret");
+};
 
-// Vulnerable login endpoint
-app.post('/login', (req, res) => {
-    const { username, password } = req.body;
+// SQL Injection vulnerability
+app.post("/login", (req, res) => {
+  const { username, password } = req.body;
+  const query = `SELECT * FROM users WHERE username = '${username}' AND password = '${password}'`;
 
-    // Vulnerability: No input validation
-    const token = jwt.sign({ username }, JWT_SECRET);
-    res.cookie('token', token);
-    res.json({ success: true });
+  connection.query(query, (error, results) => {
+    if (error) {
+      res.status(500).json({ error: error.message });
+      return;
+    }
+    const token = createToken({ username });
+    res.json({ token });
+  });
 });
 
-// Vulnerable file reading endpoint
-app.get('/file', (req, res) => {
-    const fileName = req.query.name;
-    // Vulnerability: Path traversal
-    const content = fs.readFileSync(fileName, 'utf8');
-    res.send(content);
+// Path traversal vulnerability
+app.get("/download", (req, res) => {
+  const fileName = req.query.file;
+  res.sendFile(fileName);
 });
 
-// Vulnerable SQL query (simulated)
-app.get('/users', (req, res) => {
-    const userId = req.query.id;
-    // Vulnerability: SQL Injection
-    const query = `SELECT * FROM users WHERE id = ${userId}`;
-    // Simulated database call
-    res.json({ query });
+// Command injection vulnerability
+app.get("/ping", (req, res) => {
+  const host = req.query.host;
+  const exec = require("child_process").exec;
+  exec(`ping -c 4 ${host}`, (error, stdout) => {
+    res.send(stdout);
+  });
 });
 
-app.listen(3000, () => {
-    console.log('Server running on port 3000');
-});
-
+app.listen(3000, () => console.log("Server running"));
