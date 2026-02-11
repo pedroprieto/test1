@@ -4,6 +4,8 @@ const jwt = require("jsonwebtoken");
 const mysql = require("mysql");
 const bodyParser = require("body-parser");
 
+console.log("hola mundo!!!!")
+
 app.use(bodyParser.json());
 
 // Vulnerable database connection
